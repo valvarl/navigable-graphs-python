@@ -1,16 +1,20 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import numpy as np
 import argparse
+from heapq import heappush, heappop
+import itertools
+import random
+
+import numpy as np
 from tqdm import tqdm
 # from tqdm import tqdm_notebook as tqdm
-from heapq import heappush, heappop
-import random
-import itertools
-random.seed(108)
 
-class KmGraph(object):
+random.seed(108)
+np.random.seed(108)
+
+
+class KmGraph:
     def __init__(self, k, M, dim, dist_func, data):
         self.distance_func = dist_func
         self.k = k
@@ -18,16 +22,15 @@ class KmGraph(object):
         self.count_brute_force_search = 0
         self.count_greedy_search = 0
         self.data = data
-        self.M = M # number of random edges
+        self.M = M  # number of random edges
         # build k-graph by brute force knn-search
         print('Building k-graph')
         self.edges = []
         for x in tqdm(self.data):
-            self.edges.append(self.brute_force_knn_search(self.k+1, x)[1:])
+            self.edges.append(self.brute_force_knn_search(self.k + 1, x)[1:])
 
-
-        for s, t in random.sample( list(itertools.combinations(range(len(data)), 2)), M ):
-            self.edges[s].append( (t, dist_func(data[s], data[t]) ) )
+        for s, t in random.sample(list(itertools.combinations(range(len(data)), 2)), M):
+            self.edges[s].append((t, dist_func(data[s], data[t])))
 
         # self.reset_counters()
 
@@ -43,7 +46,7 @@ class KmGraph(object):
         # Priority queue: (negative distance, vertex_id)
         candidates = []
         visited = set()  # set of vertex used for extending the set of candidates
-        observed = dict() # dict: vertex_id -> float – set of vertexes for which the distance were calculated
+        observed = {}  # dict: vertex_id -> float – set of vertexes for which the distance were calculated
 
         if ax:
             ax.scatter(x=q[0], y=q[1], s=marker_size, color='red', marker='^')
@@ -61,12 +64,12 @@ class KmGraph(object):
 
             if ax:
                 ax.scatter(x=self.data[current_vertex][0], y=self.data[current_vertex][1], s=marker_size, color='red')
-                ax.annotate( len(visited), self.data[current_vertex] )
+                ax.annotate(len(visited), self.data[current_vertex])
 
             # check stop conditions #####
-            observed_sorted = sorted( observed.items(), key=lambda a: a[1] )
+            observed_sorted = sorted(observed.items(), key=lambda a: a[1])
             # print(observed_sorted)
-            ef_largets = observed_sorted[ min(len(observed)-1, ef-1 ) ]
+            ef_largets = observed_sorted[min(len(observed) - 1, ef - 1)]
             # print(ef_largets[0], '<->', -dist)
             if ef_largets[1] < dist:
                 break
@@ -87,7 +90,7 @@ class KmGraph(object):
                         ax.annotate(len(visited), self.data[neighbor])
 
         # Sort the results by distance and return top-k
-        observed_sorted =sorted( observed.items(), key=lambda a: a[1] )
+        observed_sorted = sorted(observed.items(), key=lambda a: a[1])
         if return_observed:
             return observed_sorted
         return observed_sorted[:k]
@@ -96,8 +99,9 @@ class KmGraph(object):
         self.count_brute_force_search = 0
         self.count_greedy_search = 0
 
-    def l2_distance(a, b):
+    def l2_distance(self, a, b):
         return np.linalg.norm(a - b)
+
     def _vectorized_distance(self, x, ys):
         return [self.distance_func(x, y) for y in ys]
 
@@ -110,11 +114,12 @@ class KmGraph(object):
 
     def plot_graph(self, ax, color, linewidth=0.5):
         ax.scatter(self.data[:, 0], self.data[:, 1], c=color)
-        for i in range(len(self.data)):
+        for i, d in enumerate(self.data):
             for edge_end in self.edges[i]:
-                ax.plot( [self.data[i][0], self.data[edge_end][0]], [self.data[i][1], self.data[edge_end][1]], c=color, linewidth=linewidth )
+                ax.plot([d[0], self.data[edge_end][0]], [d[1], self.data[edge_end][1]], c=color, linewidth=linewidth)
 
-class KGraph(object):
+
+class KGraph:
     def __init__(self, k, dim, dist_func, data):
         self.distance_func = dist_func
         self.k = k
@@ -126,8 +131,7 @@ class KGraph(object):
         print('Building k-graph')
         self.edges = []
         for x in tqdm(self.data):
-            self.edges.append(self.brute_force_knn_search(self.k+1, x)[1:])
-
+            self.edges.append(self.brute_force_knn_search(self.k + 1, x)[1:])
 
         self.reset_counters()
 
@@ -143,7 +147,7 @@ class KGraph(object):
         # Priority queue: (negative distance, vertex_id)
         candidates = []
         visited = set()  # set of vertex used for extending the set of candidates
-        observed = dict() # dict: vertex_id -> float – set of vertexes for which the distance were calculated
+        observed = {}  # dict: vertex_id -> float – set of vertexes for which the distance were calculated
 
         if ax:
             ax.scatter(x=q[0], y=q[1], s=marker_size, color='red', marker='^')
@@ -161,12 +165,12 @@ class KGraph(object):
 
             if ax:
                 ax.scatter(x=self.data[current_vertex][0], y=self.data[current_vertex][1], s=marker_size, color='red')
-                ax.annotate( len(visited), self.data[current_vertex] )
+                ax.annotate(len(visited), self.data[current_vertex])
 
             # check stop conditions #####
-            observed_sorted = sorted( observed.items(), key=lambda a: a[1] )
+            observed_sorted = sorted(observed.items(), key=lambda a: a[1])
             # print(observed_sorted)
-            ef_largets = observed_sorted[ min(len(observed)-1, ef-1 ) ]
+            ef_largets = observed_sorted[min(len(observed) - 1, ef - 1)]
             # print(ef_largets[0], '<->', -dist)
             if ef_largets[1] < dist:
                 break
@@ -187,7 +191,7 @@ class KGraph(object):
                         ax.annotate(len(visited), self.data[neighbor])
 
         # Sort the results by distance and return top-k
-        observed_sorted =sorted( observed.items(), key=lambda a: a[1] )
+        observed_sorted = sorted(observed.items(), key=lambda a: a[1])
         if return_observed:
             return observed_sorted
         return observed_sorted[:k]
@@ -196,8 +200,9 @@ class KGraph(object):
         self.count_brute_force_search = 0
         self.count_greedy_search = 0
 
-    def l2_distance(a, b):
+    def l2_distance(self, a, b):
         return np.linalg.norm(a - b)
+
     def _vectorized_distance(self, x, ys):
         return [self.distance_func(x, y) for y in ys]
 
@@ -210,15 +215,15 @@ class KGraph(object):
 
     def plot_graph(self, ax, color, linewidth=0.5):
         ax.scatter(self.data[:, 0], self.data[:, 1], c=color)
-        for i in range(len(self.data)):
+        for i, d in enumerate(self.data):
             for edge_end in self.edges[i]:
-                ax.plot( [self.data[i][0], self.data[edge_end][0]], [self.data[i][1], self.data[edge_end][1]], c=color, linewidth=linewidth )
+                ax.plot([d[0], self.data[edge_end][0]], [d[1], self.data[edge_end][1]], c=color, linewidth=linewidth)
 
 
 def calculate_recall(kg, test, groundtruth, k, ef, m):
     if groundtruth is None:
         print("Ground truth not found. Calculating ground truth...")
-        groundtruth = [ [idx for idx, dist in kg.brute_force_knn_search(k, query)] for query in tqdm(test)]
+        groundtruth = [[idx for idx, dist in kg.brute_force_knn_search(k, query)] for query in tqdm(test)]
 
     print("Calculating recall...")
     recalls = []
@@ -226,7 +231,7 @@ def calculate_recall(kg, test, groundtruth, k, ef, m):
     for query, true_neighbors in tqdm(zip(test, groundtruth), total=len(test)):
         true_neighbors = true_neighbors[:k]  # Use only the top k ground truth neighbors
         entry_points = random.sample(range(len(kg.data)), m)
-        observed = [neighbor for neighbor, dist in kg.beam_search(query, k, entry_points, ef, return_observed = True)]
+        observed = [neighbor for neighbor, dist in kg.beam_search(query, k, entry_points, ef, return_observed=True)]
         total_calc = total_calc + len(observed)
         results = observed[:k]
         intersection = len(set(true_neighbors).intersection(set(results)))
@@ -234,7 +239,7 @@ def calculate_recall(kg, test, groundtruth, k, ef, m):
         recall = intersection / k
         recalls.append(recall)
 
-    return np.mean(recalls), total_calc/len(test)
+    return np.mean(recalls), total_calc / len(test)
 
 
 def read_fvecs(filename):
@@ -277,12 +282,15 @@ def generate_synthetic_data(dim, n, nq):
 
 def main():
     parser = argparse.ArgumentParser(description='Test recall of beam search method with KGraph.')
-    parser.add_argument('--dataset', choices=['synthetic', 'sift'], default='synthetic', help="Choose the dataset to use: 'synthetic' or 'sift'.")
+    parser.add_argument('--dataset', choices=['synthetic', 'sift'], default='synthetic',
+                        help="Choose the dataset to use: 'synthetic' or 'sift'.")
     parser.add_argument('--K', type=int, default=5, help='The size of the neighbourhood')
     parser.add_argument('--M', type=int, default=50, help='Number of random edges')
     parser.add_argument('--dim', type=int, default=2, help='Dimensionality of synthetic data (ignored for SIFT).')
-    parser.add_argument('--n', type=int, default=200, help='Number of training points for synthetic data (ignored for SIFT).')
-    parser.add_argument('--nq', type=int, default=50, help='Number of query points for synthetic data (ignored for SIFT).')
+    parser.add_argument('--n', type=int, default=200,
+                        help='Number of training points for synthetic data (ignored for SIFT).')
+    parser.add_argument('--nq', type=int, default=50,
+                        help='Number of query points for synthetic data (ignored for SIFT).')
     parser.add_argument('--k', type=int, default=5, help='Number of nearest neighbors to search in the test stage')
     parser.add_argument('--ef', type=int, default=10, help='Size of the beam for beam search.')
     parser.add_argument('--m', type=int, default=3, help='Number of random entry points.')

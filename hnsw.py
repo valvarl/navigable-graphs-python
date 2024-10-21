@@ -1,33 +1,39 @@
-#!python3
-import sys
-import numpy as np
-import time
-import random
+#!/usr/bin/env python
+# coding: utf-8
+
+from heapq import heappop, heappush
 from math import log2
-from heapq import heapify, heappop, heappush, heapreplace, nlargest, nsmallest
+import random
+
+import numpy as np
+
 
 def l2_distance(a, b):
     return np.linalg.norm(a - b)
+
 
 def heuristic(candidates, curr, k, distance_func, data):
     candidates = sorted(candidates, key=lambda a: a[1])
     result_indx_set = {candidates[0][0]}
     result = [candidates[0]]
-    added_data = [ data[candidates[0][0]] ]
+    added_data = [data[candidates[0][0]]]
     for c, curr_dist in candidates[1:]:
-        c_data = data[c]       
-        if curr_dist < min(map(lambda a: distance_func(c_data, a), added_data)):
-            result.append( (c, curr_dist))
+        c_data = data[c]
+        if curr_dist < min(distance_func(c_data, a) for a in added_data):
+            result.append((c, curr_dist))
             result_indx_set.add(c)
             added_data.append(c_data)
-    for c, curr_dist in candidates: # optional. uncomment to build neighborhood exactly with k elements.
+    for c, curr_dist in candidates:  # optional. uncomment to build neighborhood exactly with k elements.
         if len(result) < k and (c not in result_indx_set):
-            result.append( (c, curr_dist) )
-    
+            result.append((c, curr_dist))
+
     return result
+
+
 def k_closest(candidates: list, curr, k, distance_func, data):
     return sorted(candidates, key=lambda a: a[1])[:k]
-    
+
+
 class HNSW:
     # self._graphs[level][i] contains a {j: dist} dictionary,
     # where j is a neighbor of i and dist is distance
@@ -38,7 +44,16 @@ class HNSW:
     def vectorized_distance_(self, x, ys):
         return [self.distance_func(x, y) for y in ys]
 
-    def __init__(self, distance_func, m=5, ef=10, ef_construction=30, m0=None, neighborhood_construction=heuristic, vectorized=False):
+    def __init__(
+            self,
+            distance_func,
+            m=5,
+            ef=10,
+            ef_construction=30,
+            m0=None,
+            neighborhood_construction=heuristic,
+            vectorized=False
+    ):
         self.data = []
         self.distance_func = distance_func
         self.neighborhood_construction = neighborhood_construction
@@ -77,7 +92,6 @@ class HNSW:
         idx = len(data)
         data.append(elem)
 
-
         if point is not None:  # the HNSW is not empty, we have an entry point
             dist = distance(elem, data[point])
             # for all levels in which we dont have to insert elem,
@@ -92,33 +106,34 @@ class HNSW:
                 # navigate the graph and update ep with the closest
                 # nodes we find
                 # ep = self._search_graph(elem, ep, layer, ef)
-                candidates = self.beam_search(graph=layer, q=elem, k=level_m*2, eps=[point], ef=self._ef_construction)
+                candidates = self.beam_search(graph=layer, q=elem, k=level_m * 2, eps=[point], ef=self._ef_construction)
                 point = candidates[0][0]
-                
+
                 # insert in g[idx] the best neighbors
                 # layer[idx] = layer_idx = {}
                 # self._select(layer_idx, ep, level_m, layer, heap=True)
 
-                neighbors = self.neighborhood_construction(candidates=candidates, curr=idx, k=level_m, distance_func=self.distance_func, data=self.data)
+                neighbors = self.neighborhood_construction(candidates=candidates, curr=idx, k=level_m,
+                                                           distance_func=self.distance_func, data=self.data)
                 layer[idx] = neighbors
                 # insert backlinks to the new node
                 for j, dist in neighbors:
                     candidates_j = layer[j] + [(idx, dist)]
-                    neighbors_j = self.neighborhood_construction(candidates=candidates_j, curr=j, k=level_m, distance_func=self.distance_func, data=self.data)
+                    neighbors_j = self.neighborhood_construction(candidates=candidates_j, curr=j, k=level_m,
+                                                                 distance_func=self.distance_func, data=self.data)
                     layer[j] = neighbors_j
-                    
-                
-        for i in range(len(graphs), level):
+
+        for _ in range(len(graphs), level):
             # for all new levels, we create an empty graph
             graphs.append({idx: []})
             self._enter_point = idx
-            
-    # can be used for search after jump        
+
+    # can be used for search after jump
     def search(self, q, k=1, ef=10, level=0, return_observed=True):
         graphs = self._graphs
         point = self._enter_point
         for layer in reversed(graphs[level:]):
-            point, dist = self.beam_search(layer, q=q, k=1, eps=[point], ef=1)[0]
+            point, _ = self.beam_search(layer, q=q, k=1, eps=[point], ef=1)[0]
 
         return self.beam_search(graph=graphs[level], q=q, k=k, eps=[point], ef=ef, return_observed=return_observed)
 
@@ -135,7 +150,7 @@ class HNSW:
         # Priority queue: (negative distance, vertex_id)
         candidates = []
         visited = set()  # set of vertex used for extending the set of candidates
-        observed = dict() # dict: vertex_id -> float – set of vertexes for which the distance were calculated
+        observed = {}  # dict: vertex_id -> float – set of vertexes for which the distance were calculated
 
         if ax:
             ax.scatter(x=q[0], y=q[1], s=marker_size, color='red', marker='^')
@@ -153,12 +168,12 @@ class HNSW:
 
             if ax:
                 ax.scatter(x=self.data[current_vertex][0], y=self.data[current_vertex][1], s=marker_size, color='red')
-                ax.annotate( len(visited), self.data[current_vertex] )
+                ax.annotate(len(visited), self.data[current_vertex])
 
             # check stop conditions #####
-            observed_sorted = sorted( observed.items(), key=lambda a: a[1] )
+            observed_sorted = sorted(observed.items(), key=lambda a: a[1])
             # print(observed_sorted)
-            ef_largets = observed_sorted[ min(len(observed)-1, ef-1 ) ]
+            ef_largets = observed_sorted[min(len(observed) - 1, ef - 1)]
             # print(ef_largets[0], '<->', -dist)
             if ef_largets[1] < dist:
                 break
@@ -170,35 +185,33 @@ class HNSW:
             # Check the neighbors of the current vertex
             for neighbor, _ in graph[current_vertex]:
                 if neighbor not in observed:
-                    dist = self.distance_func(q, self.data[neighbor])                    
+                    dist = self.distance_func(q, self.data[neighbor])
                     # if neighbor not in visited:
                     heappush(candidates, (dist, neighbor))
-                    observed[neighbor] = dist                    
+                    observed[neighbor] = dist
                     if ax:
                         ax.scatter(x=self.data[neighbor][0], y=self.data[neighbor][1], s=marker_size, color='yellow')
                         # ax.annotate(len(visited), (self.data[neighbor][0], self.data[neighbor][1]))
                         ax.annotate(len(visited), self.data[neighbor])
-                    
-        
+
         # Sort the results by distance and return top-k
-        observed_sorted =sorted( observed.items(), key=lambda a: a[1] )
+        observed_sorted = sorted(observed.items(), key=lambda a: a[1])
         if return_observed:
             return observed_sorted
         return observed_sorted[:k]
+
     def save_graph_plane(self, file_path):
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding='utf-8') as f:
             f.write(f'{len(self.data)}\n')
 
             for x in self.data:
-                s = ' '.join([a.astype('str') for a in x ])
+                s = ' '.join([a.astype('str') for a in x])
                 f.write(f'{s}\n')
 
             for graph in self._graphs:
                 for src, neighborhood in graph.items():
-                    for dst, dist in neighborhood: 
+                    for dst, _ in neighborhood:
                         f.write(f'{src} {dst}\n')
-
-
 
 # n = int(sys.argv[1]) # graph size
 # dim = int(sys.argv[2]) # vector dimensionality
@@ -207,7 +220,7 @@ class HNSW:
 
 # hnsw = HNSW( distance_func=l2_distance, m=5, m0=7, ef=10, ef_construction=30,  neighborhood_construction = heuristic)
 
-# k =5 
+# k = 5
 # dim = 2
 # n = 1000
 # data = np.array(np.float32(np.random.random((n, dim))))

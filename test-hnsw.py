@@ -1,37 +1,40 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import numpy as np
 import argparse
+import random
 from tqdm import tqdm
 # from tqdm import tqdm_notebook as tqdm
-from heapq import heappush, heappop
-import random
-import itertools
-random.seed(108)
+
+import numpy as np
+
 from hnsw import HNSW
 from hnsw import l2_distance, heuristic
 
+random.seed(108)
+np.random.seed(108)
+
 
 def brute_force_knn_search(distance_func, k, q, data):
-        '''
-        Return the list of (idx, dist) for k-closest elements to {x} in {data}
-        '''
-        return sorted(enumerate(map(lambda x: distance_func(q, x) ,data)), key=lambda a: a[1])[:k]
+    '''
+    Return the list of (idx, dist) for k-closest elements to {x} in {data}
+    '''
+    return sorted(enumerate(distance_func(q, x) for x in data), key=lambda a: a[1])[:k]
 
 
 def calculate_recall(distance_func, kg, test, groundtruth, k, ef, m):
     if groundtruth is None:
         print("Ground truth not found. Calculating ground truth...")
-        groundtruth = [ [idx for idx, dist in brute_force_knn_search(distance_func, k, query, kg.data)] for query in tqdm(test)]
+        groundtruth = [
+            [idx for idx, dist in brute_force_knn_search(distance_func, k, query, kg.data)] for query in tqdm(test)
+        ]
 
     print("Calculating recall...")
     recalls = []
     total_calc = 0
     for query, true_neighbors in tqdm(zip(test, groundtruth), total=len(test)):
         true_neighbors = true_neighbors[:k]  # Use only the top k ground truth neighbors
-        entry_points = random.sample(range(len(kg.data)), m)
-        observed = [neighbor for neighbor, dist in kg.search(q=query, k=k, ef=ef, return_observed = True)]
+        observed = [neighbor for neighbor, dist in kg.search(q=query, k=k, ef=ef, return_observed=True)]
         total_calc = total_calc + len(observed)
         results = observed[:k]
         intersection = len(set(true_neighbors).intersection(set(results)))
@@ -39,7 +42,7 @@ def calculate_recall(distance_func, kg, test, groundtruth, k, ef, m):
         recall = intersection / k
         recalls.append(recall)
 
-    return np.mean(recalls), total_calc/len(test)
+    return np.mean(recalls), total_calc / len(test)
 
 
 def read_fvecs(filename):
@@ -82,13 +85,16 @@ def generate_synthetic_data(dim, n, nq):
 
 def main():
     parser = argparse.ArgumentParser(description='Test recall of beam search method with KGraph.')
-    parser.add_argument('--dataset', choices=['synthetic', 'sift'], default='synthetic', help="Choose the dataset to use: 'synthetic' or 'sift'.")
+    parser.add_argument('--dataset', choices=['synthetic', 'sift'], default='synthetic',
+                        help="Choose the dataset to use: 'synthetic' or 'sift'.")
     parser.add_argument('--K', type=int, default=5, help='The size of the neighbourhood')
     parser.add_argument('--M', type=int, default=50, help='Avg number of neighbors')
     parser.add_argument('--M0', type=int, default=50, help='Avg number of neighbors')
     parser.add_argument('--dim', type=int, default=2, help='Dimensionality of synthetic data (ignored for SIFT).')
-    parser.add_argument('--n', type=int, default=200, help='Number of training points for synthetic data (ignored for SIFT).')
-    parser.add_argument('--nq', type=int, default=50, help='Number of query points for synthetic data (ignored for SIFT).')
+    parser.add_argument('--n', type=int, default=200,
+                        help='Number of training points for synthetic data (ignored for SIFT).')
+    parser.add_argument('--nq', type=int, default=50,
+                        help='Number of query points for synthetic data (ignored for SIFT).')
     parser.add_argument('--k', type=int, default=5, help='Number of nearest neighbors to search in the test stage')
     parser.add_argument('--ef', type=int, default=10, help='Size of the beam for beam search.')
     parser.add_argument('--m', type=int, default=3, help='Number of random entry points.')
@@ -106,15 +112,16 @@ def main():
 
     # Create HNSW
 
-    hnsw = HNSW( distance_func=l2_distance, m=args.M, m0=args.M0, ef=10, ef_construction=30,  neighborhood_construction = heuristic)
+    hnsw = HNSW(distance_func=l2_distance, m=args.M, m0=args.M0, ef=10, ef_construction=30,
+                neighborhood_construction=heuristic)
     # Add data to HNSW
     for x in tqdm(train_data):
         hnsw.add(x)
 
-
     # Calculate recall
     recall, avg_cal = calculate_recall(l2_distance, hnsw, test_data, groundtruth_data, k=args.k, ef=args.ef, m=args.m)
     print(f"Average recall: {recall}, avg calc: {avg_cal}")
+
 
 if __name__ == "__main__":
     main()
