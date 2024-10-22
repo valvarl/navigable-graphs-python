@@ -74,7 +74,6 @@ class HNSW:
         self._enter_point = None
 
     def add(self, elem, ef=None):
-
         if ef is None:
             ef = self._ef
 
@@ -84,47 +83,49 @@ class HNSW:
         point = self._enter_point
         m = self._m
 
-        # level at which the element will be inserted
+        # Определяем уровень, на котором элемент будет вставлен
         level = int(-log2(random.random()) * self._level_mult) + 1
-        # print("level: %d" % level)
-
-        # elem will be at data[idx]
         idx = len(data)
         data.append(elem)
 
-        if point is not None:  # the HNSW is not empty, we have an entry point
+        if point is not None:  # Если граф не пуст, у нас есть входная точка
             dist = distance(elem, data[point])
-            # for all levels in which we dont have to insert elem,
-            # we search for the closest neighbor
+
+            # Обходим граф на уровнях, которые не требуют вставки элемента
             for layer in reversed(graphs[level:]):
                 point, dist = self.beam_search(graph=layer, q=elem, k=1, eps=[point], ef=1)[0]
-            # at these levels we have to insert elem; ep is a heap of entry points.
 
             layer0 = graphs[0]
             for layer in reversed(graphs[:level]):
                 level_m = m if layer is not layer0 else self._m0
-                # navigate the graph and update ep with the closest
-                # nodes we find
-                # ep = self._search_graph(elem, ep, layer, ef)
+
+                # Получаем кандидатов для вставки
                 candidates = self.beam_search(graph=layer, q=elem, k=level_m * 2, eps=[point], ef=self._ef_construction)
-                point = candidates[0][0]
 
-                # insert in g[idx] the best neighbors
-                # layer[idx] = layer_idx = {}
-                # self._select(layer_idx, ep, level_m, layer, heap=True)
+                # Оптимизация: используем только наиболее релевантные кандидаты
+                unique_neighbors = {}
+                for c, curr_dist in candidates:
+                    if c not in unique_neighbors or curr_dist < unique_neighbors[c]:
+                        unique_neighbors[c] = curr_dist
 
-                neighbors = self.neighborhood_construction(candidates=candidates, curr=idx, k=level_m,
-                                                           distance_func=self.distance_func, data=self.data)
-                layer[idx] = neighbors
-                # insert backlinks to the new node
-                for j, dist in neighbors:
-                    candidates_j = layer[j] + [(idx, dist)]
-                    neighbors_j = self.neighborhood_construction(candidates=candidates_j, curr=j, k=level_m,
-                                                                 distance_func=self.distance_func, data=self.data)
-                    layer[j] = neighbors_j
+                # Сортируем кандидатов и оставляем только топ-M
+                sorted_neighbors = sorted(unique_neighbors.items(), key=lambda item: item[1])[:level_m]
+                layer[idx] = sorted_neighbors
 
+                # Обновляем обратные ссылки
+                for j, dist in sorted_neighbors:
+                    # Оптимизация: используем прямой поиск соседей для обновления
+                    if j in layer:
+                        candidates_j = layer[j] + [(idx, dist)]
+                        neighbors_j = self.neighborhood_construction(candidates=candidates_j, curr=j, k=level_m,
+                                                                     distance_func=self.distance_func, data=self.data)
+                        layer[j] = neighbors_j
+                    else:
+                        # В случае отсутствия записи создаем новую
+                        layer[j] = [(idx, dist)]
+
+        # Создание новых уровней, если это необходимо
         for _ in range(len(graphs), level):
-            # for all new levels, we create an empty graph
             graphs.append({idx: []})
             self._enter_point = idx
 
